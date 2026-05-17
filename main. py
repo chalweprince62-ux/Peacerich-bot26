@@ -1,0 +1,230 @@
+import requests
+import time
+import numpy as np
+import pandas as pd
+
+# =========================
+# CONFIG
+# =========================
+
+BOT_TOKEN = https://api.telegram.org/bot8921402434:AAH7Sj4QMNTh9pwfkut2cNSrOSK08GeaF2I/getUpdates
+	◦	CHAT_ID = 6402289413
+
+BASE_URL = https://api.telegram.org/bot8921402434:AAH7Sj4QMNTh9pwfkut2cNSrOSK08GeaF2I/getUpdates
+
+API_KEY = 4acf2c2a530a46389759bfd19980aed8
+
+FREE_CHANNEL = "https://t.me/PeaceRich19"
+VIP_CHAT_ID = https://t.me/+a47iZH95HWA4ZmQ8
+
+# =========================
+# MARKETS
+# =========================
+
+forex_pairs = [
+    "EUR/USD","GBP/USD","USD/JPY","USD/CHF",
+    "AUD/USD","USD/CAD","NZD/USD",
+    "EUR/JPY","GBP/JPY","EUR/GBP"
+]
+
+otc_pairs = [
+    "EUR/USD OTC","GBP/JPY OTC","USD/JPY OTC",
+    "EUR/GBP OTC","AUD/USD OTC","USD/CAD OTC"
+]
+
+# =========================
+# SEND FUNCTION
+# =========================
+
+def send(msg):
+    try:
+        requests.post(
+            f"{BASE_URL}/sendMessage",
+            data={"chat_id": CHAT_ID, "text": msg}
+        )
+    except:
+        pass
+
+# =========================
+# PRICE DATA (REAL SOURCE)
+# =========================
+
+def get_candles(symbol):
+
+    try:
+        url = https://twelvedata.com/account# &interval=1min&outputsize=30&apikey={4acf2c2a530a46389759bfd19980aed8}"
+        data = requests.get(url).json()
+
+        closes = [float(i["close"]) for i in data["values"]]
+        closes.reverse()
+
+        return closes
+
+    except:
+        return None
+
+# =========================
+# INDICATORS
+# =========================
+
+def rsi(data):
+    delta = np.diff(data)
+    gain = np.mean([x for x in delta if x > 0])
+    loss = np.mean([abs(x) for x in delta if x < 0])
+
+    if loss == 0:
+        return 100
+
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
+def ema(data, period):
+    return pd.Series(data).ewm(span=period).mean().iloc[-1]
+
+# =========================
+# AI SCORING ENGINE
+# =========================
+
+def score(rsi_val, ema_fast, ema_slow, volatility):
+
+    score = 0
+
+    if rsi_val < 30 or rsi_val > 70:
+        score += 30
+
+    if ema_fast > ema_slow:
+        score += 30
+
+    if abs(ema_fast - ema_slow) > 0.0005:
+        score += 20
+
+    if volatility > 0.001:
+        score += 20
+
+    return score
+
+# =========================
+# DECISION ENGINE
+# =========================
+
+def decision(score):
+
+    if score >= 80:
+        return "STRONG ENTRY 💪"
+    elif score >= 60:
+        return "VALID SETUP ⚠️"
+    else:
+        return "NO TRADE ❌"
+
+# =========================
+# SL / TP ENGINE
+# =========================
+
+def levels(price):
+
+    sl = price * 0.003
+    tp1 = price * 0.004
+    tp2 = price * 0.006
+
+    return sl, tp1, tp2
+
+# =========================
+# SIGNAL FORMAT
+# =========================
+
+def format_signal(pair, direction, score_val, rsi_val, trend, price):
+
+    sl, tp1, tp2 = levels(price)
+
+    return f"""
+🏦 HEDGE FUND v4 AI QUANT SYSTEM
+
+PAIR: {pair}
+DIRECTION: {direction}
+
+📊 SCORE: {score_val}/100
+📊 RSI: {rsi_val:.2f}
+📊 TREND: {trend}
+💰 PRICE: {price}
+
+📉 SL: {sl:.5f}
+🎯 TP1: {tp1:.5f}
+🎯 TP2: {tp2:.5f}
+
+🔥 STATUS: {decision(score_val)}
+
+FREE CHANNEL: {FREE_CHANNEL}
+"""
+
+# =========================
+# MAIN ENGINE
+# =========================
+
+pending = None
+pending_time = 0
+
+print("🔥 HEDGE FUND v4 AI QUANT RUNNING 🔥")
+
+while True:
+
+    try:
+
+        import random
+        now = time.time()
+
+        if pending is None:
+
+            pair = random.choice(forex_pairs)
+
+            data = get_candles(pair)
+
+            if data and len(data) > 20:
+
+                rsi_val = rsi(data)
+                ema_fast = ema(data, 9)
+                ema_slow = ema(data, 21)
+
+                price = data[-1]
+                volatility = abs(data[-1] - data[-2])
+
+                trend = "BULLISH" if ema_fast > ema_slow else "BEARISH"
+
+                score_val = score(rsi_val, ema_fast, ema_slow, volatility)
+
+                direction = "BUY 📈" if trend == "BULLISH" else "SELL 📉"
+
+                if score_val >= 60:
+
+                    pending = (pair, direction, score_val, rsi_val, trend, price)
+                    pending_time = now
+
+                    send(f"""
+🔥 PRE SIGNAL (5 MIN HEAD START)
+
+PAIR: {pair}
+
+🟡 LEVEL 1 → Scan
+🟡 LEVEL 2 → AI Scoring
+
+⏳ WAIT FOR LEVEL 3 ENTRY
+FREE: {FREE_CHANNEL}
+""")
+
+        else:
+
+            if now - pending_time >= 300:
+
+                pair, direction, score_val, rsi_val, trend, price = pending
+
+                msg = format_signal(pair, direction, score_val, rsi_val, trend, price)
+
+                send("🔥 LEVEL 3 ENTRY 💪\n" + msg)
+
+                pending = None
+                pending_time = 0
+
+        time.sleep(5)
+
+    except Exception as e:
+        print("ERROR:", e)
+        time.sleep(10)
